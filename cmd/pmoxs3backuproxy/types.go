@@ -56,6 +56,8 @@ type Server struct {
 	SessionsRelease   mutex.Releaser
 	KnownChunksSizes  sync.Map
 	LookupTypeFlag    string
+	CloudProvider     string
+	StorageClass      string
 }
 
 type DataStoreStatus struct {

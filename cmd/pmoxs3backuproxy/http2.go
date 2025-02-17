@@ -44,6 +44,8 @@ func (s *Server) backup(sock net.Conn, C TicketEntry, ds string, S s3pmoxcommon.
 		Snapshot:          &S,
 		Writers:           make(map[int32]*Writer),
 		Finished:          false,
+		CloudProvider:     s.CloudProvider,
+		StorageClass:      s.StorageClass,
 	}
 	srv.ServeConn(sock, &http2.ServeConnOpts{Handler: snew})
 	if !snew.Finished { //Incomplete backup because connection died pve side, remove from S3
@@ -96,6 +98,8 @@ func (s *Server) restore(sock net.Conn, C TicketEntry, ds string, S s3pmoxcommon
 		Snapshot:          &S,
 		Writers:           make(map[int32]*Writer),
 		Finished:          false,
+		CloudProvider:     s.CloudProvider,
+		StorageClass:      s.StorageClass,
 	}
 	srv.ServeConn(sock, &http2.ServeConnOpts{Handler: snew})
 

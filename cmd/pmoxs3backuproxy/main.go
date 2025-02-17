@@ -122,6 +122,8 @@ func main() {
 	ticketExpireFlag := flag.Uint64("ticketexpire", 3600, "API Ticket expire time in seconds")
 	lookupTypeFlag := flag.String("lookuptype", "auto", "Bucket lookup type: auto,dns,path")
 	debug := flag.Bool("debug", false, "Debug logging")
+	cloudProviderFlag := flag.String("cloud-provider", "aws", "Cloud service provider: aws, tencent, alibaba")
+	storageClassFlag := flag.String("storage-class", "STANDARD", "Storage class for object upload")
 	flag.BoolVar(&printVersion, "version", false, "Show version and exit")
 	flag.BoolVar(&printVersion, "v", false, "Show version and exit")
 	flag.Parse()
@@ -143,17 +145,21 @@ func main() {
 		SecureFlag:     *insecureFlag,
 		TicketExpire:   *ticketExpireFlag,
 		LookupTypeFlag: *lookupTypeFlag,
+		CloudProvider:  *cloudProviderFlag,
+		StorageClass:   *storageClassFlag,
 	}
 	srv := &http.Server{Addr: *bindAddress, Handler: S}
 	srv.SetKeepAlivesEnabled(true)
 	go S.ticketGC()
 	S.handleSignal()
 	s3backuplog.InfoPrint(
-		"Starting PBS api server on [%s], upstream: [%s] ssl: [%t] lookup type: [%s]",
+		"Starting PBS api server on [%s], upstream: [%s] ssl: [%t] lookup type: [%s] cloud provider: [%s] storage class: [%s]",
 		*bindAddress,
 		*endpointFlag,
 		*insecureFlag,
 		*lookupTypeFlag,
+		*cloudProviderFlag,
+		*storageClassFlag,
 	)
 
 	certFing := certFingeprint(*certFlag)
@@ -741,6 +747,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			k++
 		}
 		R := bytes.NewReader(outFile)
+		userMetadata := map[string]string{"csum": r.URL.Query().Get("csum")}
+		if s.CloudProvider == "tencent" {
+			userMetadata["x-cos-storage-class"] = s.StorageClass
+		} else if s.CloudProvider == "alibaba" {
+			userMetadata["x-oss-storage-class"] = s.StorageClass
+		}
 		_, err := s.H2Ticket.Client.PutObject(
 			context.Background(),
 			*s.SelectedDataStore,
@@ -748,7 +760,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			R,
 			int64(len(outFile)),
 			minio.PutObjectOptions{
-				UserMetadata: map[string]string{"csum": r.URL.Query().Get("csum")},
+				UserMetadata: userMetadata,
 			},
 		)
 		if err != nil {
@@ -829,6 +841,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		finalData := header.Bytes()
 
 		R := bytes.NewReader(finalData)
+		userMetadata := map[string]string{"csum": r.URL.Query().Get("csum")}
+		if s.CloudProvider == "tencent" {
+			userMetadata["x-cos-storage-class"] = s.StorageClass
+		} else if s.CloudProvider == "alibaba" {
+			userMetadata["x-oss-storage-class"] = s.StorageClass
+		}
 		_, err := s.H2Ticket.Client.PutObject(
 			context.Background(),
 			*s.SelectedDataStore,
@@ -836,7 +854,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			R,
 			int64(R.Len()),
 			minio.PutObjectOptions{
-				UserMetadata: map[string]string{"csum": r.URL.Query().Get("csum")},
+				UserMetadata: userMetadata,
 			},
 		)
 
@@ -850,6 +868,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		chunksizeinfo, _ := json.Marshal(jsonMap)
 
 		R = bytes.NewReader(chunksizeinfo)
+		userMetadata = map[string]string{"csum": r.URL.Query().Get("csum")}
+		if s.CloudProvider == "tencent" {
+			userMetadata["x-cos-storage-class"] = s.StorageClass
+		} else if s.CloudProvider == "alibaba" {
+			userMetadata["x-oss-storage-class"] = s.StorageClass
+		}
 		_, err = s.H2Ticket.Client.PutObject(
 			context.Background(),
 			*s.SelectedDataStore,
@@ -857,7 +881,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			R,
 			int64(R.Len()),
 			minio.PutObjectOptions{
-				UserMetadata: map[string]string{"csum": r.URL.Query().Get("csum")},
+				UserMetadata: userMetadata,
 			},
 		)
 
@@ -959,13 +983,21 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			errResponse := minio.ToErrorResponse(e)
 			switch errResponse.Code {
 			case "NoSuchKey":
+				userMetadata := map[string]string{}
+				if s.CloudProvider == "tencent" {
+					userMetadata["x-cos-storage-class"] = s.StorageClass
+				} else if s.CloudProvider == "alibaba" {
+					userMetadata["x-oss-storage-class"] = s.StorageClass
+				}
 				_, err := s.H2Ticket.Client.PutObject(
 					context.Background(),
 					*s.SelectedDataStore,
 					s3name,
 					r.Body,
 					int64(esize),
-					minio.PutObjectOptions{},
+					minio.PutObjectOptions{
+						UserMetadata: userMetadata,
+					},
 				)
 				if err != nil {
 					s3backuplog.ErrorPrint("Writing object %s failed: %s", digest, err.Error())
