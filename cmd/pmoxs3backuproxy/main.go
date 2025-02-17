@@ -123,7 +123,7 @@ func main() {
 	lookupTypeFlag := flag.String("lookuptype", "auto", "Bucket lookup type: auto,dns,path")
 	debug := flag.Bool("debug", false, "Debug logging")
 	cloudProviderFlag := flag.String("cloud-provider", "aws", "Cloud service provider: aws, tencent, alibaba")
-	storageClassFlag := flag.String("storage-class", "STANDARD", "Storage class for object upload")
+	storageClassFlag := flag.String("storage-class", "STANDARD", "Storage class for object upload (standard, reduced-redundancy, standard-ia, onezone-ia, intelligent-tiering, glacier, glacier-deep-archive)")
 	flag.BoolVar(&printVersion, "version", false, "Show version and exit")
 	flag.BoolVar(&printVersion, "v", false, "Show version and exit")
 	flag.Parse()
@@ -140,13 +140,44 @@ func main() {
 		s3backuplog.EnableDebug()
 	}
 
+	// Storage class mapping
+	storageClassMapping := map[string]map[string]string{
+		"aws": {
+			"STANDARD":           "STANDARD",
+			"REDUCED_REDUNDANCY": "REDUCED_REDUNDANCY",
+			"STANDARD_IA":        "STANDARD_IA",
+			"ONEZONE_IA":         "ONEZONE_IA",
+			"GLACIER":            "GLACIER",
+			"DEEP_ARCHIVE":       "DEEP_ARCHIVE",
+		},
+		"tencent": {
+			"STANDARD":     "STANDARD",
+			"STANDARD_IA":  "STANDARD_IA",
+			"ARCHIVE":      "ARCHIVE",
+			"DEEP_ARCHIVE": "DEEP_ARCHIVE",
+		},
+		"alibaba": {
+			"STANDARD":     "STANDARD",
+			"IA":           "IA",
+			"ARCHIVE":      "ARCHIVE",
+			"COLD_ARCHIVE": "COLD_ARCHIVE",
+		},
+	}
+
+	// Get the mapped storage class based on the cloud provider and storage class flag
+	mappedStorageClass, ok := storageClassMapping[*cloudProviderFlag][*storageClassFlag]
+	if !ok {
+		s3backuplog.ErrorPrint("Invalid storage class for cloud provider %s: %s", *cloudProviderFlag, *storageClassFlag)
+		os.Exit(1)
+	}
+
 	S := &Server{
 		S3Endpoint:     *endpointFlag,
 		SecureFlag:     *insecureFlag,
 		TicketExpire:   *ticketExpireFlag,
 		LookupTypeFlag: *lookupTypeFlag,
 		CloudProvider:  *cloudProviderFlag,
-		StorageClass:   *storageClassFlag,
+		StorageClass:   mappedStorageClass,
 	}
 	srv := &http.Server{Addr: *bindAddress, Handler: S}
 	srv.SetKeepAlivesEnabled(true)
@@ -159,7 +190,7 @@ func main() {
 		*insecureFlag,
 		*lookupTypeFlag,
 		*cloudProviderFlag,
-		*storageClassFlag,
+		mappedStorageClass,
 	)
 
 	certFing := certFingeprint(*certFlag)
