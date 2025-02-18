@@ -3,6 +3,7 @@ package main
 import (
 	"sync"
 	"tizbac/pmoxs3backuproxy/internal/s3pmoxcommon"
+	"tizbac/pmoxs3backuproxy/internal/storage"
 
 	"github.com/juju/mutex/v2"
 	"github.com/minio/minio-go/v7"
@@ -58,6 +59,8 @@ type Server struct {
 	LookupTypeFlag    string
 	CloudProvider     string
 	StorageClass      string
+	StorageFactory    *storage.StorageFactory
+	Storage           storage.Storage
 }
 
 type DataStoreStatus struct {

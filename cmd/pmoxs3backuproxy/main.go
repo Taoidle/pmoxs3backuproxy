@@ -31,6 +31,10 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"github.com/google/uuid"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/tags"
 	"io"
 	"math/rand"
 	"net/http"
@@ -44,11 +48,6 @@ import (
 	"time"
 	"tizbac/pmoxs3backuproxy/internal/s3backuplog"
 	"tizbac/pmoxs3backuproxy/internal/s3pmoxcommon"
-
-	"github.com/google/uuid"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/minio/minio-go/v7/pkg/tags"
 )
 
 var connectionList = make(map[string]*minio.Client)
